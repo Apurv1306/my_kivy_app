@@ -1,0 +1,63 @@
+name: Android Build
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Buildozer
+        uses: chaquo/buildozer-action@v2
+        with:
+          buildozer_version: '1.5.0'
+
+      - name: Cache Buildozer Dependencies
+        uses: actions/cache@v4
+        with:
+          path: .buildozer
+          key: ${{ runner.os }}-buildozer-${{ hashFiles('buildozer.spec') }}
+          restore-keys: |
+            ${{ runner.os }}-buildozer-
+
+      - name: Build and Deploy APK
+        run: |
+          buildozer android debug
+          
+      - name: Get APK filename
+        id: get-apk-filename
+        run: |
+          APK_FILE=$(ls bin/*.apk | head -n 1)
+          echo "APK_FILE=$APK_FILE" >> $GITHUB_ENV
+
+      - name: Upload APK as an artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: my-app-apk
+          path: ${{ env.APK_FILE }}
+
+      - name: Release APK
+        id: create_release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ${{ env.APK_FILE }}
+          body: |
+            ## Android APK Release
+            
+            This is an automated release of the FaceApp.
+
+            Changes:
+            - ...
+            
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
